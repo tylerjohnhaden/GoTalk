@@ -1,60 +1,106 @@
 package main
 
 import (
+	pb "./gotalk"
 	"context"
-	"fmt"
 	"google.golang.org/grpc"
-	"io"
 	"log"
+	"math/rand"
 	"net"
-	"net/http"
-	pb "./proto"
+	"time"
 )
 
 const (
-	rpcPort  = ":50051"
-	httpPort = ":8080"
+	rpcPort = ":50051"
+	//httpPort = ":8080"
+	rpcAddress = "localhost:50051"
 )
 
 // server is used to implement helloworld.GreeterServer.
 type server struct{}
 
-func handler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hi there, I love %s!", r.URL.Path[1:])
-}
+//var (
+//	gotalkServer *Server
+//)
+
+//func handler(w http.ResponseWriter, r *http.Request) {
+//	fmt.Fprintf(w, "Hi there, I love %s!", r.URL.Path[1:])
+//}
 
 // SayHello implements helloworld.GreeterServer
-func (s *server) SubmitJobRequest(stream *pb.JobRequest) {
+func (s *server) SubmitJobRequest(ctx context.Context, jobRequest *pb.JobRequest) (*pb.JobResponse, error) {
+	log.Printf("Processing job request")
 
-	for {
-		in, err := stream.Recv()
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		key := serialize(in.Location)
-		... // look for notes to be sent to client
-		for _, note := range s.routeNotes[key] {
-			if err := stream.Send(note); err != nil {
-				return err
-			}
-		}
+	newData := map[string]string{
+		"favoriteIceCream": "vanilla",
 	}
+
+	for k, v := range jobRequest.GetJobData() {
+		newData[k] = v
+	}
+
+	return &pb.JobResponse{
+		JobData: newData,
+	}, nil
 }
 
-func main() {
-	http.HandleFunc("/", handler)
-	go log.Fatal(http.ListenAndServe(httpPort, nil))
-
+func serverStuff() {
 	lis, err := net.Listen("tcp", rpcPort)
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
 	s := grpc.NewServer()
-	pb.RegisterGreeterServer(s, &server{})
+	pb.RegisterGoTalkServer(s, &server{})
+	log.Print("Starting server")
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
+}
+
+func clientStuff() {
+	conn, err := grpc.Dial(rpcAddress, grpc.WithInsecure())
+	if err != nil {
+		log.Fatalf("did not connect client: %v", err)
+	}
+	defer conn.Close()
+
+	c := pb.NewGoTalkClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	log.Print("Starting client")
+
+	r, err := c.SubmitJobRequest(ctx, &pb.JobRequest{
+		JobId: rand.Uint64(),
+		JobNode: &pb.JobNode{
+			JobTitle: pb.JobNode_A,
+			JobNodes: []*pb.JobNode{
+				{JobTitle: pb.JobNode_B,},
+				{JobTitle: pb.JobNode_C,},
+				{JobTitle: pb.JobNode_D,},
+				{JobTitle: pb.JobNode_E,},
+				{JobTitle: pb.JobNode_F,},
+			},
+		},
+		JobData: map[string]string{
+			"firstName": "tyler",
+			"lastName": "haden",
+		},
+	})
+	if err != nil {
+		log.Fatalf("could not greet: %v", err)
+	}
+	log.Printf("Recieved Response Data: %s", r.JobData)
+}
+
+func main() {
+	//http.HandleFunc("/", handler)
+	//go log.Fatal(http.ListenAndServe(httpPort, nil))
+
+	go serverStuff()
+
+	time.Sleep(2 * time.Second)
+
+	clientStuff()
 }

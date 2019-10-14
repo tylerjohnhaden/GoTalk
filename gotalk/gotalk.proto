@@ -1,11 +1,11 @@
 syntax = "proto3";
 
 service GoTalk {
-    rpc SubmitJobRequest (stream JobRequest) returns (stream JobResponse) {}
+    rpc SubmitJobRequest (JobRequest) returns (JobResponse) {}
 }
 
 message JobRequest {
-    int64 jobId = 1;
+    uint64 jobId = 1;
     JobNode jobNode = 2;
     map<string, string> jobData = 3;
 }
