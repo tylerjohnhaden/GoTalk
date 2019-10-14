@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+service GoTalk {
+    rpc SubmitJobRequest (stream JobRequest) returns (stream JobResponse) {}
+}
+
+message JobRequest {
+    int64 jobId = 1;
+    JobNode jobNode = 2;
+    map<string, string> jobData = 3;
+}
+
+message JobNode {
+    enum JobTitle {
+        A = 0;
+        B = 1;
+        C = 2;
+        D = 3;
+        E = 4;
+        F = 5;
+        G = 6;
+        H = 7;
+    }
+    JobTitle jobTitle = 1;
+    repeated JobNode jobNodes = 2;
+}
+
+message JobResponse {
+    map<string, string> jobData = 3;
+}
